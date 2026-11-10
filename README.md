@@ -17,6 +17,8 @@ Built with React 19, TypeScript, Vite, Tailwind v4, TanStack Query and Supabase.
 | **Emails** | Quote, confirmation, return reminder, invoice and payment reminder open as ready-written Gmail drafts (or the device's mail app). Sending is logged on the job. |
 | **Invoicing** | "Copy lines & open FreeAgent" puts the invoice lines on the clipboard and opens a new FreeAgent invoice; the number and link are stored back on the job. |
 | **Margins** | Cost and supplier per line (sub-hire, crew, transport) give price / cost / profit / margin per job and in Reports. Internal only — never on client paperwork. |
+| **QR labels & camera scanning** | `/inventory/labels` prints a QR label per item; the check screen reads them with the phone or tablet camera. No scanner hardware or app. |
+| **Big jobs** | Area, supplier and order status per line give a by-area margin table and an orders-by-supplier list. |
 | **Activity log** | Status changes, check-outs and emails write their own log entries. |
 
 ## Getting started
@@ -123,3 +125,13 @@ reminders**:
 - **Email** — choose Gmail in the browser or the device's mail app, and set the
   sign-off used on every email.
 - **Reminders** — how many days before a quote or an invoice is flagged for a chase.
+- **Email templates** — the wording of every email, with placeholders and a live preview.
+
+## Deploying to Vercel
+
+1. In Vercel: **Add New → Project**, import this repository. The framework is detected as Vite; leave the build settings alone.
+2. Add two environment variables from Supabase → Project Settings → API:
+   `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY`.
+3. Deploy. In Supabase → Authentication → URL Configuration, set the Site URL to the Vercel address.
+
+Camera scanning needs HTTPS, which Vercel provides.

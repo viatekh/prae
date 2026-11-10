@@ -65,3 +65,44 @@ export function calcProjectMargin(lineItems: PricedLine[], overallDiscountPct = 
   const marginPct = subtotal > 0 ? (profit / subtotal) * 100 : null
   return { revenue: subtotal, cost, profit, marginPct }
 }
+
+export interface AreaBreakdown { area: string; cost: number; price: number; profit: number; marginPct: number | null }
+
+/** Price, cost and margin per area of a job — the "by area" block of a job spec. */
+export function breakdownByArea(lines: (PricedLine & { area?: string | null })[]): AreaBreakdown[] {
+  const map = new Map<string, { cost: number; price: number }>()
+  for (const l of lines) {
+    if (l.is_component) continue
+    const key = l.area?.trim() || 'Unassigned'
+    const row = map.get(key) ?? { cost: 0, price: 0 }
+    row.cost += calcLineCost(l)
+    row.price += calcLineTotal(l)
+    map.set(key, row)
+  }
+  return [...map].map(([area, { cost, price }]) => ({
+    area, cost, price, profit: price - cost, marginPct: price > 0 ? ((price - cost) / price) * 100 : null,
+  }))
+}
+
+export interface SupplierOrder {
+  supplier: string
+  total: number
+  lines: { description: string; quantity: number; cost: number; status: string | null; area: string | null }[]
+}
+
+/** Everything bought in for a job, grouped by who it comes from. */
+export function ordersBySupplier(
+  lines: (PricedLine & { supplier?: string | null; order_status?: string | null; area?: string | null })[],
+): SupplierOrder[] {
+  const map = new Map<string, SupplierOrder>()
+  for (const l of lines) {
+    const supplier = l.supplier?.trim()
+    if (l.is_component || !supplier) continue
+    const order = map.get(supplier) ?? { supplier, total: 0, lines: [] }
+    const cost = calcLineCost(l)
+    order.total += cost
+    order.lines.push({ description: l.description ?? '', quantity: l.quantity, cost, status: l.order_status ?? null, area: l.area ?? null })
+    map.set(supplier, order)
+  }
+  return [...map.values()].sort((a, b) => a.supplier.localeCompare(b.supplier))
+}

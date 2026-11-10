@@ -20,6 +20,8 @@ import { CheckPage } from './pages/CheckPage'
 import { Button } from './components/shared/Button'
 
 // Reports is the only chart-heavy view and isn't on the daily path.
+// QR generation is only needed when printing labels.
+const LabelsPage = lazy(() => import('./pages/LabelsPage').then(m => ({ default: m.LabelsPage })))
 const ReportsPage = lazy(() => import('./pages/ReportsPage').then(m => ({ default: m.ReportsPage })))
 
 const queryClient = new QueryClient({
@@ -82,6 +84,7 @@ const router = createBrowserRouter([
           { path: 'quick',           element: <QuickHirePage /> },
           { path: 'warehouse',       element: <WarehousePage /> },
           { path: 'inventory',       element: <InventoryPage /> },
+          { path: 'inventory/labels', element: <LabelsPage /> },
           { path: 'clients',         element: <ClientsPage /> },
           { path: 'calendar',        element: <CalendarPage /> },
           { path: 'reports',         element: <ReportsPage /> },

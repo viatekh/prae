@@ -1,6 +1,6 @@
-import { useMemo, useRef, useState } from 'react'
+import { Suspense, lazy, useMemo, useRef, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { ArrowLeft, Check, Minus, Plus, AlertTriangle, ScanLine } from 'lucide-react'
+import { ArrowLeft, Check, Minus, Plus, AlertTriangle, ScanLine, Camera } from 'lucide-react'
 import { useProject, useUpdateLineCheck, useUpdateProject, useCheckAll } from '../hooks/useProjects'
 import { useAddProjectLog } from '../hooks/useProjectLogs'
 import type { ProjectLineItem } from '../types'
@@ -9,6 +9,9 @@ import { cn } from '../lib/utils'
 import { errorMessage } from '../lib/errors'
 import { useToast } from '../lib/toast-context'
 import { Button } from '../components/shared/Button'
+
+// The QR decoder is loaded only when someone opens the camera.
+const CameraScanner = lazy(() => import('../components/shared/CameraScanner').then(m => ({ default: m.CameraScanner })))
 
 type Direction = 'out' | 'in'
 
@@ -29,6 +32,7 @@ export function CheckPage() {
   const [chosen, setChosen] = useState<Direction | null>(null)
   const [flash, setFlash] = useState<string | null>(null)
   const [noteFor, setNoteFor] = useState<string | null>(null)
+  const [camera, setCamera] = useState(false)
 
   const lines = useMemo(() => pickableLines(project?.line_items ?? []), [project?.line_items])
   const progress = checkProgress(lines)
@@ -50,9 +54,9 @@ export function CheckPage() {
     })
   }
 
-  const onScan = (e: React.FormEvent) => {
-    e.preventDefault()
-    const q = scan.trim().toLowerCase()
+  // One path for every way a code arrives: typed, a wedge scanner, or the camera.
+  const applyScan = (raw: string) => {
+    const q = raw.trim().toLowerCase()
     if (!q) return
     const matches = (l: ProjectLineItem) =>
       l.item?.item_id?.toLowerCase() === q ||
@@ -61,7 +65,7 @@ export function CheckPage() {
     // Prefer a line that still needs counting, so scanning the same code twice fills two.
     const line = lines.find(l => matches(l) && l[field] < l.quantity) ?? lines.find(matches)
     if (!line) {
-      toast(`"${scan.trim()}" is not on this job`, 'error')
+      toast(`"${raw.trim()}" is not on this job`, 'error')
     } else if (line[field] >= line.quantity) {
       toast(`${line.description} is already fully counted`, 'error')
     } else {
@@ -69,6 +73,11 @@ export function CheckPage() {
       setFlash(line.id)
       setTimeout(() => setFlash(null), 900)
     }
+  }
+
+  const onScan = (e: React.FormEvent) => {
+    e.preventDefault()
+    applyScan(scan)
     setScan('')
     scanRef.current?.focus()
   }
@@ -125,13 +134,24 @@ export function CheckPage() {
           ))}
         </div>
 
-        <form onSubmit={onScan} className="relative">
+        {camera && (
+          <Suspense fallback={<div className="h-56 rounded-xl bg-black" />}>
+            <CameraScanner onScan={applyScan} onClose={() => setCamera(false)} />
+          </Suspense>
+        )}
+
+        <form onSubmit={onScan} className="relative flex gap-2">
           <ScanLine size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
           <input ref={scanRef} value={scan} onChange={e => setScan(e.target.value)}
             placeholder="Scan or type an item ID, then Enter"
             aria-label="Scan or type an item ID"
             autoCapitalize="off" autoCorrect="off" enterKeyHint="done"
-            className="w-full pl-9 pr-3 py-2.5 text-base bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900" />
+            className="flex-1 min-w-0 pl-9 pr-3 py-2.5 text-base bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900" />
+          <button type="button" onClick={() => setCamera(v => !v)} aria-label={camera ? 'Close camera' : 'Scan with camera'} aria-pressed={camera}
+            className={cn('w-12 rounded-lg border flex items-center justify-center cursor-pointer shrink-0',
+              camera ? 'bg-gray-900 border-gray-900 text-white' : 'bg-white border-gray-300 text-gray-700')}>
+            <Camera size={20} />
+          </button>
         </form>
       </div>
 

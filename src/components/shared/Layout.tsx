@@ -301,14 +301,14 @@ export function Layout() {
   )
 
   return (
-    <div className="flex h-screen bg-gray-50">
+    <div className="flex h-screen print:h-auto print:block bg-gray-50 print:bg-white">
       <a href="#main-content"
         className="sr-only focus:not-sr-only focus:absolute focus:z-[70] focus:top-2 focus:left-2 focus:bg-gray-900 focus:text-white focus:px-3 focus:py-2 focus:rounded-lg focus:text-sm">
         Skip to content
       </a>
 
       {/* Desktop sidebar */}
-      <aside className="hidden md:flex w-56 bg-gray-900 text-white flex-col shrink-0">
+      <aside className="hidden md:flex print:hidden w-56 bg-gray-900 text-white flex-col shrink-0">
         {sidebar}
       </aside>
 
@@ -322,9 +322,9 @@ export function Layout() {
         </div>
       )}
 
-      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+      <div className="flex-1 flex flex-col min-w-0 overflow-hidden print:overflow-visible print:block">
         {/* Mobile top bar */}
-        <header className="md:hidden flex items-center gap-3 px-4 py-3 bg-gray-900 text-white shrink-0">
+        <header className="md:hidden print:hidden flex items-center gap-3 px-4 py-3 bg-gray-900 text-white shrink-0">
           <button onClick={() => setDrawerOpen(true)} aria-label="Open menu"
             className="text-gray-300 hover:text-white p-1 -ml-1 cursor-pointer">
             <Menu size={20} />
@@ -336,13 +336,13 @@ export function Layout() {
           </div>
         </header>
 
-        <main id="main-content" className="flex-1 overflow-auto pb-16 md:pb-0">
+        <main id="main-content" className="flex-1 overflow-auto print:overflow-visible pb-16 md:pb-0">
           <Outlet />
         </main>
 
         {/* Mobile bottom nav */}
         <nav aria-label="Quick navigation"
-          className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 flex z-30">
+          className="md:hidden print:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 flex z-30">
           {BOTTOM_NAV.map(({ to, icon: Icon, label }) => (
             <NavLink key={to} to={to} end={to === '/'}
               className={({ isActive }) => cn(

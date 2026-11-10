@@ -1,10 +1,10 @@
 import { useState, useMemo, useCallback } from 'react'
-import { Plus, Search, ChevronDown, ChevronRight, Pencil, Trash2, AlertTriangle, Copy, Download, Upload, AlertCircle, ClipboardList } from 'lucide-react'
+import { Plus, Search, ChevronDown, ChevronRight, Pencil, Trash2, AlertTriangle, Copy, Download, Upload, AlertCircle, ClipboardList, QrCode as QrCodeIcon } from 'lucide-react'
 import { useItemLogs, useAddItemLog, useDeleteItemLog } from '../hooks/useItemLogs'
 import { itemsToCSV, downloadCSV } from '../lib/csv'
 import { CSVImport } from '../components/inventory/CSVImport'
 import { CategoryManager } from '../components/inventory/CategoryManager'
-import { useNavigate, useSearchParams } from 'react-router-dom'
+import { useNavigate, useSearchParams, Link } from 'react-router-dom'
 import { useToast } from '../lib/toast-context'
 import { useItems, useCreateItem, useUpdateItem, useDeleteItem, useSaveComponents, useCategories } from '../hooks/useItems'
 import { usePackages, useCreatePackage, useUpdatePackage, useDeletePackage } from '../hooks/usePackages'
@@ -284,6 +284,7 @@ function ItemsTab({ search, onSearch }: { search: string; onSearch: (v: string) 
           />
         </div>
         <div className="flex gap-2 shrink-0">
+          <Link to="/inventory/labels" className="hidden sm:inline-flex items-center gap-2 text-sm font-medium px-4 py-2 rounded-lg bg-white border border-gray-300 text-gray-700 hover:bg-gray-50"><QrCodeIcon size={16} />QR labels</Link>
           <Button variant="secondary" onClick={() => setShowBulk(true)}><Plus size={16} />Bulk add</Button>
           <Button onClick={() => setShowForm(true)}><Plus size={16} />Add item</Button>
         </div>

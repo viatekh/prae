@@ -3,6 +3,7 @@ import { useSettings, useSaveSettings } from '../hooks/useSettings'
 import type { Settings } from '../types'
 import { Input, Textarea } from '../components/shared/Input'
 import { Button } from '../components/shared/Button'
+import { EmailTemplates } from '../components/settings/EmailTemplates'
 import { CategoryManager } from '../components/inventory/CategoryManager'
 import { useToast } from '../lib/toast-context'
 import { errorMessage } from '../lib/errors'
@@ -108,6 +109,8 @@ export function SettingsPage() {
             <Input label="Chase an invoice after (days)" type="number" min="1" value={form.payment_days ?? 14} onChange={e => upd('payment_days', parseInt(e.target.value) || 1)} />
           </div>
         </div>
+
+        <EmailTemplates form={form} onChange={templates => upd('email_templates', templates)} />
 
         {/* Payment terms */}
         <div className="bg-white rounded-xl border border-gray-200 p-5 space-y-4">

@@ -409,6 +409,8 @@ export function ProjectDetailPage() {
     discount_pct: l.discount_pct,
     unit_cost: l.unit_cost ?? 0,
     supplier: l.supplier ?? null,
+    area: l.area ?? null,
+    order_status: l.order_status ?? null,
     out_qty: l.out_qty ?? 0,
     in_qty: l.in_qty ?? 0,
     damaged_qty: l.damaged_qty ?? 0,

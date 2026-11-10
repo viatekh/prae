@@ -2,11 +2,14 @@ import { useState } from 'react'
 import { ExternalLink, Copy, Mail, ChevronDown, ChevronUp } from 'lucide-react'
 import { format, parseISO } from 'date-fns'
 import type { LineItemDraft, Project, Settings } from '../../types'
-import { calcLineCost, calcLineTotal, calcProjectMargin, cn, formatCurrency } from '../../lib/utils'
+import { breakdownByArea, calcLineCost, calcLineTotal, calcProjectMargin, cn, formatCurrency, ordersBySupplier } from '../../lib/utils'
 import { invoiceText } from '../../lib/invoice'
 import type { EmailKind } from '../../lib/email'
 import { Button } from '../shared/Button'
 import { useToast } from '../../lib/toast-context'
+
+/** Where a bought-in line has got to — the statuses used on the job spec sheets. */
+const ORDER_STATUSES = ['Enquired', 'Requested', 'In progress', 'Ordered', 'Confirmed', 'Urgent', 'Cancelled']
 
 const marginTone = (pct: number | null) =>
   pct === null ? 'text-gray-400' : pct < 20 ? 'text-red-600' : pct < 40 ? 'text-amber-600' : 'text-green-700'
@@ -19,7 +22,7 @@ export function ProjectMoney({ project, lines, settings, onLineChange, onSave, o
   project: Project
   lines: LineItemDraft[]
   settings: Settings | undefined
-  onLineChange: <K extends 'unit_cost' | 'supplier'>(index: number, field: K, value: LineItemDraft[K]) => void
+  onLineChange: <K extends 'unit_cost' | 'supplier' | 'area' | 'order_status'>(index: number, field: K, value: LineItemDraft[K]) => void
   onSave: (updates: Partial<Project>) => Promise<void>
   onEmail: (kind: EmailKind) => void
 }) {
@@ -30,6 +33,10 @@ export function ProjectMoney({ project, lines, settings, onLineChange, onSave, o
   const [url, setUrl] = useState<string | null>(null)
 
   const { revenue, cost, profit, marginPct } = calcProjectMargin(lines, project.overall_discount_pct ?? 0)
+  const areas = breakdownByArea(lines)
+  const hasAreas = lines.some(l => l.area)
+  const orders = ordersBySupplier(lines)
+  const knownAreas = [...new Set(lines.map(l => l.area).filter((a): a is string => !!a))]
   const isInvoiced = project.status === 'invoiced' || project.status === 'completed'
 
   const openFreeAgent = async () => {
@@ -71,27 +78,74 @@ export function ProjectMoney({ project, lines, settings, onLineChange, onSave, o
 
       <button type="button" onClick={() => setShowCosts(v => !v)} aria-expanded={showCosts}
         className="w-full flex items-center justify-between px-4 py-2 text-xs font-medium text-gray-600 hover:bg-gray-50 cursor-pointer border-b border-gray-100">
-        <span>Costs per line{cost === 0 && ' — none entered yet'}</span>
+        <span>Costs, areas &amp; suppliers{cost === 0 && ' — none entered yet'}</span>
         {showCosts ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
       </button>
       {showCosts && (
         <div className="border-b border-gray-100">
-          <div className="grid grid-cols-[1fr_110px_80px_70px] gap-2 px-4 py-1.5 text-xs font-medium text-gray-400">
-            <span>Line</span><span>Supplier</span><span className="text-right">Cost / day</span><span className="text-right">Profit</span>
-          </div>
+          <datalist id="job-areas">{knownAreas.map(a => <option key={a} value={a} />)}</datalist>
           {lines.map((line, index) => line.is_component ? null : (
-            <div key={index} className="grid grid-cols-[1fr_110px_80px_70px] gap-2 px-4 py-1.5 items-center border-t border-gray-50">
-              <span className="text-sm text-gray-800 truncate">{line.quantity} × {line.description}</span>
-              <input value={line.supplier ?? ''} placeholder="—" aria-label={`Supplier for ${line.description}`}
-                onChange={e => onLineChange(index, 'supplier', e.target.value || null)}
-                className="text-xs border border-gray-200 rounded px-1.5 py-1 w-full" />
-              <input type="number" min="0" step="0.01" value={line.unit_cost || ''} placeholder="0" aria-label={`Cost per day for ${line.description}`}
-                onChange={e => onLineChange(index, 'unit_cost', parseFloat(e.target.value) || 0)}
-                className="text-sm text-right border border-gray-200 rounded px-1.5 py-1 w-full" />
-              <span className="text-xs text-right text-gray-500 tabular-nums">{formatCurrency(calcLineTotal(line) - calcLineCost(line))}</span>
+            <div key={index} className="px-4 py-2 border-t border-gray-50 first:border-t-0 space-y-1.5">
+              <div className="flex items-baseline justify-between gap-2">
+                <span className="text-sm text-gray-800 truncate">{line.quantity} × {line.description}</span>
+                <span className="text-xs text-gray-500 tabular-nums shrink-0">{formatCurrency(calcLineTotal(line) - calcLineCost(line))} profit</span>
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-[1fr_1fr_120px_90px] gap-1.5">
+                <input value={line.area ?? ''} placeholder="Area" list="job-areas" aria-label={`Area for ${line.description}`}
+                  onChange={e => onLineChange(index, 'area', e.target.value || null)}
+                  className="text-xs border border-gray-200 rounded px-1.5 py-1 min-w-0" />
+                <input value={line.supplier ?? ''} placeholder="Supplier / who" aria-label={`Supplier for ${line.description}`}
+                  onChange={e => onLineChange(index, 'supplier', e.target.value || null)}
+                  className="text-xs border border-gray-200 rounded px-1.5 py-1 min-w-0" />
+                <select value={line.order_status ?? ''} aria-label={`Order status for ${line.description}`}
+                  onChange={e => onLineChange(index, 'order_status', e.target.value || null)}
+                  className="text-xs border border-gray-200 rounded px-1 py-1 bg-white min-w-0">
+                  <option value="">No status</option>
+                  {ORDER_STATUSES.map(st => <option key={st} value={st}>{st}</option>)}
+                </select>
+                <input type="number" min="0" step="0.01" value={line.unit_cost || ''} placeholder="Cost / day" aria-label={`Cost per day for ${line.description}`}
+                  onChange={e => onLineChange(index, 'unit_cost', parseFloat(e.target.value) || 0)}
+                  className="text-xs text-right border border-gray-200 rounded px-1.5 py-1 min-w-0" />
+              </div>
             </div>
           ))}
           {lines.length === 0 && <p className="px-4 py-3 text-xs text-gray-400">Add kit or services first.</p>}
+        </div>
+      )}
+
+      {hasAreas && (
+        <div className="border-b border-gray-100">
+          <div className="grid grid-cols-[1fr_80px_80px_80px_52px] gap-2 px-4 py-1.5 text-xs font-medium text-gray-400">
+            <span>By area</span><span className="text-right">Cost</span><span className="text-right">Price</span><span className="text-right">Profit</span><span className="text-right">Margin</span>
+          </div>
+          {areas.map(a => (
+            <div key={a.area} className="grid grid-cols-[1fr_80px_80px_80px_52px] gap-2 px-4 py-1.5 text-xs border-t border-gray-50 tabular-nums">
+              <span className={cn('truncate', a.area === 'Unassigned' ? 'text-gray-400' : 'text-gray-800')}>{a.area}</span>
+              <span className="text-right text-gray-600">{formatCurrency(a.cost)}</span>
+              <span className="text-right text-gray-600">{formatCurrency(a.price)}</span>
+              <span className="text-right text-gray-800">{formatCurrency(a.profit)}</span>
+              <span className={cn('text-right font-medium', marginTone(a.marginPct))}>{a.marginPct === null ? '—' : `${a.marginPct.toFixed(0)}%`}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {orders.length > 0 && (
+        <div className="border-b border-gray-100 px-4 py-2.5 space-y-2">
+          <p className="text-xs font-medium text-gray-400">Orders by supplier</p>
+          {orders.map(o => (
+            <div key={o.supplier} className="text-xs">
+              <div className="flex justify-between font-medium text-gray-800">
+                <span>{o.supplier}</span><span className="tabular-nums">{formatCurrency(o.total)}</span>
+              </div>
+              {o.lines.map((l, i) => (
+                <div key={i} className="flex justify-between gap-2 text-gray-500 pl-3">
+                  <span className="truncate">{l.quantity} × {l.description}{l.area ? ` · ${l.area}` : ''}</span>
+                  <span className={cn('shrink-0', l.status === 'Urgent' && 'text-red-600 font-medium', l.status === 'Confirmed' && 'text-green-700')}>{l.status ?? 'No status'}</span>
+                </div>
+              ))}
+            </div>
+          ))}
         </div>
       )}
 

@@ -164,6 +164,10 @@ export interface ProjectLineItem {
   /** What one unit costs us per day (sub-hire, crew, transport). 0 for owned kit. */
   unit_cost: number
   supplier: string | null
+  /** Part of the venue / job this line belongs to, for big multi-area jobs. */
+  area: string | null
+  /** Where a bought-in line has got to with its supplier. */
+  order_status: string | null
   /** Warehouse counts: how many have left, come back, and come back damaged. */
   out_qty: number
   in_qty: number
@@ -197,6 +201,8 @@ export interface Settings {
   /** Days after invoicing before an unpaid invoice is flagged. */
   payment_days: number
   email_signature: string
+  /** Templates the company has rewritten; kinds not present use the built-in wording. */
+  email_templates: Partial<Record<string, { subject: string; body: string }>>
 }
 
 /** A line item as held in local editing state, before it has a DB row. */

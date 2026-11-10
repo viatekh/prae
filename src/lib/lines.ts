@@ -3,6 +3,8 @@ import type { Item, LineItemDraft, Package } from '../types'
 const blank = {
   discount_pct: 0,
   supplier: null,
+  area: null,
+  order_status: null,
   out_qty: 0,
   in_qty: 0,
   damaged_qty: 0,

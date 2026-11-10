@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
-import { calcLineCost, calcProjectMargin } from './utils'
+import { calcLineCost, calcProjectMargin, breakdownByArea, ordersBySupplier } from './utils'
 import { invoiceText } from './invoice'
-import { buildEmail, composeUrl } from './email'
+import { buildEmail, composeUrl, renderTemplate } from './email'
 import { buildItemLines, checkProgress } from './lines'
 import type { Item } from '../types'
 
@@ -84,5 +84,43 @@ describe('lines', () => {
       { line_type: 'rental', quantity: 2, out_qty: 9, in_qty: 0 },
       { line_type: 'service', quantity: 1, out_qty: 0, in_qty: 0 },
     ])).toEqual({ total: 6, out: 6, back: 3, damaged: 1 })
+  })
+})
+
+describe('big jobs', () => {
+  const lines = [
+    line({ description: 'Neon', area: 'Courtyard', unit_cost: 50, supplier: 'Halo', order_status: 'Ordered' }),
+    line({ description: 'Haze', area: 'Courtyard', supplier: 'Halo' }),
+    line({ description: 'Crew', unit_cost: 80, supplier: 'Dave' }),
+    line({ description: 'Cable', area: 'Courtyard', is_component: true, unit_cost: 999, supplier: 'Halo' }),
+  ]
+  it('totals cost, price and margin per area', () => {
+    const [courtyard, rest] = breakdownByArea(lines)
+    expect(courtyard).toMatchObject({ area: 'Courtyard', cost: 300, price: 1200, profit: 900, marginPct: 75 })
+    expect(rest).toMatchObject({ area: 'Unassigned', cost: 480, price: 600 })
+  })
+  it('groups bought-in lines by supplier, ignoring accessory rows', () => {
+    const [dave, halo] = ordersBySupplier(lines)
+    expect(dave).toMatchObject({ supplier: 'Dave', total: 480 })
+    expect(halo.total).toBe(300)
+    expect(halo.lines.map(l => l.status)).toEqual(['Ordered', null])
+  })
+})
+
+describe('templates', () => {
+  it('drops a line whose placeholder is empty and keeps unknown tokens', () => {
+    const out = renderTemplate('Hi {name},\n\nPay here: {link}\n\nRef {ref} {unknown}', { name: 'Jo', link: '', ref: 'A1' })
+    expect(out).toBe('Hi Jo,\n\nRef A1 {unknown}')
+  })
+  it('uses a customised template over the built-in one', () => {
+    const d = buildEmail('quote',
+      { name: 'Party', project_number: 'P-1', event_date: null, delivery_date: null, collection_date: null, delivery_mode: null,
+        collection_mode: null, delivery_address: null, invoice_number: null, invoice_url: null, expiry_date: null,
+        client: { name: 'Jo Smith', email: null } },
+      { company_name: 'Prae', email_signature: 'Cheers', payment_terms: '',
+        email_templates: { quote: { subject: 'Your quote {ref}', body: 'Yo {first_name}\nExpires {expiry}\n{total}\n{signature}' } } },
+      99)
+    expect(d.subject).toBe('Your quote P-1')
+    expect(d.body).toBe('Yo Jo\n£99.00\nCheers')
   })
 })

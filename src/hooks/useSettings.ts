@@ -2,6 +2,11 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 import type { Settings } from '../types'
 
+function parseJson<T>(value: string | undefined, fallback: T): T {
+  if (!value) return fallback
+  try { return JSON.parse(value) as T } catch { return fallback }
+}
+
 function parseSettings(rows: { key: string; value: string }[]): Settings {
   const map = Object.fromEntries(rows.map(r => [r.key, r.value]))
   return {
@@ -22,6 +27,7 @@ function parseSettings(rows: { key: string; value: string }[]): Settings {
     chase_quote_days: parseInt(map.chase_quote_days || '3') || 3,
     payment_days: parseInt(map.payment_days || '14') || 14,
     email_signature: map.email_signature || '',
+    email_templates: parseJson(map.email_templates, {}),
   }
 }
 
@@ -40,7 +46,11 @@ export function useSaveSettings() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: async (settings: Partial<Settings>) => {
-      const rows = Object.entries(settings).map(([key, value]) => ({ key, value: String(value) }))
+      const rows = Object.entries(settings).map(([key, value]) => ({
+        key,
+        // Settings are a key/value table of strings; structured values travel as JSON.
+        value: typeof value === 'object' && value !== null ? JSON.stringify(value) : String(value),
+      }))
       for (const row of rows) {
         await supabase.from('settings').upsert(row, { onConflict: 'key' })
       }

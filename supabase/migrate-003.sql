@@ -11,7 +11,9 @@ alter table project_line_items
   add column if not exists out_qty     integer not null default 0,
   add column if not exists in_qty      integer not null default 0,
   add column if not exists damaged_qty integer not null default 0,
-  add column if not exists return_note text;
+  add column if not exists return_note text,
+  add column if not exists area         text,
+  add column if not exists order_status text;
 
 -- Jobs already checked out / in before this migration get matching counts, so
 -- they don't show as "0 of N out".
@@ -46,5 +48,6 @@ insert into settings (key, value) values
   ('email_via', 'gmail'),
   ('chase_quote_days', '3'),
   ('payment_days', '14'),
-  ('email_signature', '')
+  ('email_signature', ''),
+  ('email_templates', '{}')
 on conflict (key) do nothing;

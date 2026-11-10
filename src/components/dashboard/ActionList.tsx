@@ -6,7 +6,7 @@ import { buildEmail, composeUrl } from '../../lib/email'
 import type { EmailKind } from '../../lib/email'
 import { useUpdateProject } from '../../hooks/useProjects'
 import { useAddProjectLog } from '../../hooks/useProjectLogs'
-import { cn } from '../../lib/utils'
+import { cn, calcProjectTotals } from '../../lib/utils'
 import { Button } from '../shared/Button'
 
 const TONE: Record<ActionKind, string> = {
@@ -59,10 +59,10 @@ export function ActionList({ actions, projects, settings }: {
   const run = (action: ProjectAction, project: Project) => {
     const button = BUTTON[action.kind]
     if (button.email) {
-      // The total isn't loaded on the list view; reminders read fine without it.
-      const draft = buildEmail(button.email, project, settings, 0)
-      const body = draft.body.replace(/, totalling £0\.00| \(£0\.00\)/g, '')
-      window.open(composeUrl({ ...draft, body }, settings?.email_via ?? 'gmail'), '_blank', 'noopener')
+      const { subtotal } = calcProjectTotals(project.line_items ?? [], project.overall_discount_pct ?? 0)
+      const total = subtotal * (settings?.vat_enabled ? 1 + settings.vat_rate / 100 : 1)
+      const draft = buildEmail(button.email, project, settings, total)
+      window.open(composeUrl(draft, settings?.email_via ?? 'gmail'), '_blank', 'noopener')
       addLog.mutate({ project_id: project.id, message: `${button.label} — emailed ${draft.to || 'client'}` })
       if (action.kind === 'chase_quote') updateProject.mutate({ id: project.id, quote_sent_at: new Date().toISOString() })
     } else {

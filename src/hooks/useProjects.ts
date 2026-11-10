@@ -11,7 +11,7 @@ export function useProjects() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('projects')
-        .select('*, client:clients(*), line_items:project_line_items(id, is_component, line_type, quantity, out_qty, in_qty)')
+        .select('*, client:clients(*), line_items:project_line_items(id, is_component, line_type, quantity, days, unit_price, week_price, month_price, discount_pct, out_qty, in_qty)')
         .order('event_date', { ascending: true, nullsFirst: false })
       if (error) throw error
       return data as Project[]
