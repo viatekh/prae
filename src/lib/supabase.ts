@@ -7,4 +7,5 @@ if (!supabaseUrl || !supabaseAnonKey) {
   throw new Error('Missing Supabase environment variables. Create a .env.local file with VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY.')
 }
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey)
+// Trimmed: a trailing space or slash pasted into the host's settings is a common slip.
+export const supabase = createClient(supabaseUrl.trim().replace(/\/+$/, ''), supabaseAnonKey.trim())
