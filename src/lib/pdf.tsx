@@ -2,6 +2,7 @@ import { pdf, Document, Page, Text, View, StyleSheet } from '@react-pdf/renderer
 import type { DocumentProps } from '@react-pdf/renderer'
 import type { Project, Settings, LineItemDraft } from '../types'
 import { calcLineTotal, calcProjectTotals, lineRateBasis } from './utils'
+import { componentsByParent } from './lines'
 import { format, parseISO } from 'date-fns'
 
 const styles = StyleSheet.create({
@@ -104,7 +105,7 @@ function QuoteDocument({ project, lines, settings }: { project: Project; lines: 
   const vat = subtotal * vatRate
   const total = subtotal + vat
   const grouped = groupLines(lines)
-  const allComponents = lines.filter(l => l.is_component)
+  const contents = componentsByParent(lines)
   const hasTCs = !!(settings?.tc_text?.trim())
 
   return (
@@ -155,7 +156,7 @@ function QuoteDocument({ project, lines, settings }: { project: Project; lines: 
               {catLines.map((line, i) => {
                 const lineTotal = calcLineTotal(line)
                 const rate = lineRateBasis(line)
-                const comps = allComponents.filter(c => c.item_id === line.item_id || c.package_id === line.package_id)
+                const comps = contents.get(line) ?? []
                 return (
                   <View key={i}>
                     <View style={styles.tableRow}>

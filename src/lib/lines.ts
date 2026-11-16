@@ -141,3 +141,19 @@ export function checkProgress(lines: { line_type: string; quantity: number; out_
     damaged: acc.damaged + (l.damaged_qty ?? 0),
   }), { total: 0, out: 0, back: 0, damaged: 0 })
 }
+
+/**
+ * Each top-level line's contents: the component rows that follow it, up to the
+ * next top-level line — the same rule the kit list uses. Matching on item or
+ * package id instead gives one item's accessories to every other line that
+ * shares a null id.
+ */
+export function componentsByParent(lines: LineItemDraft[]): Map<LineItemDraft, LineItemDraft[]> {
+  const out = new Map<LineItemDraft, LineItemDraft[]>()
+  let parent: LineItemDraft | null = null
+  for (const line of lines) {
+    if (!line.is_component) { parent = line; out.set(line, []); continue }
+    if (parent) out.get(parent)!.push(line)
+  }
+  return out
+}

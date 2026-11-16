@@ -6,7 +6,7 @@ import { supabase } from '../lib/supabase'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import {
   format, startOfMonth, endOfMonth, eachDayOfInterval,
-  isSameMonth, isToday, parseISO, isWithinInterval,
+  isSameMonth, isToday, parseISO,
   addMonths, subMonths, startOfWeek, endOfWeek,
   addWeeks, subWeeks, isBefore, startOfDay,
 } from 'date-fns'
@@ -145,12 +145,12 @@ const STATUS_COLORS: Record<string, string> = {
   overdue:   'bg-red-100 text-red-800',
 }
 
+/** A job shows on its event day only, not every day until collection (Tekh's call, June 2026). */
 function projectsForDay(projects: Project[], day: Date): Project[] {
+  const dayStr = format(day, 'yyyy-MM-dd')
   return projects.filter(p => {
-    const start = p.event_date ? parseISO(p.event_date) : null
-    if (!start) return false
-    const end = p.collection_date ? parseISO(p.collection_date) : start
-    try { return isWithinInterval(day, { start, end }) } catch { return false }
+    if (!p.event_date) return false
+    try { return format(parseISO(p.event_date), 'yyyy-MM-dd') === dayStr } catch { return false }
   })
 }
 

@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
-import { ArrowLeft, Plus, Trash2, Copy, FileText, ClipboardList, Send, ScanLine, LogIn, LogOut, AlertCircle, MoreVertical, Users, MessageSquare, Truck, Check, Loader2 } from 'lucide-react'
+import { ArrowLeft, Plus, Trash2, Copy, FileText, ClipboardList, Send, ScanLine, LogIn, LogOut, AlertCircle, MoreVertical, Users, MessageSquare, Truck, Check, Loader2, ChevronRight, ChevronDown } from 'lucide-react'
 import { useUnsavedChanges } from '../hooks/useUnsavedChanges'
 import { errorMessage } from '../lib/errors'
 import { format, addDays, isPast, parseISO } from 'date-fns'
@@ -26,6 +26,7 @@ import { ProjectWorkflow } from '../components/projects/ProjectWorkflow'
 import { QuickAddItem } from '../components/projects/QuickAddItem'
 import { defaultHireDays } from '../lib/workflow'
 import { buildItemLines, buildPackageLines, buildServiceLine } from '../lib/lines'
+import { packageAvailability } from '../lib/packages'
 import type { WorkflowAction } from '../lib/workflow'
 import { ProjectMoney } from '../components/projects/ProjectMoney'
 import { buildEmail, composeUrl, EMAIL_LABELS } from '../lib/email'
@@ -229,11 +230,11 @@ function ProjectDetailsPanel({ project, clients, onSave, onRefreshClients }: {
         <div>
           <Input label="Event date" type="datetime-local" value={form.event_date} onChange={e => handleEventDateChange(e.target.value)} />
           <div className="flex gap-1 mt-1">
-            <button type="button" onClick={() => handleEventDateChange(format(new Date(), "yyyy-MM-dd'T'HH:mm"))}
+            <button type="button" onClick={() => handleEventDateChange(format(new Date(), "yyyy-MM-dd") + 'T11:00')}
               className="text-xs px-2 py-0.5 rounded border border-gray-200 text-gray-500 hover:bg-gray-50">Today</button>
-            <button type="button" onClick={() => handleEventDateChange(format(addDays(new Date(), 7), "yyyy-MM-dd'T'HH:mm"))}
+            <button type="button" onClick={() => handleEventDateChange(format(addDays(new Date(), 7), "yyyy-MM-dd") + 'T11:00')}
               className="text-xs px-2 py-0.5 rounded border border-gray-200 text-gray-500 hover:bg-gray-50">+7d</button>
-            <button type="button" onClick={() => handleEventDateChange(format(addDays(new Date(), 14), "yyyy-MM-dd'T'HH:mm"))}
+            <button type="button" onClick={() => handleEventDateChange(format(addDays(new Date(), 14), "yyyy-MM-dd") + 'T11:00')}
               className="text-xs px-2 py-0.5 rounded border border-gray-200 text-gray-500 hover:bg-gray-50">+14d</button>
           </div>
         </div>
@@ -390,6 +391,8 @@ export function ProjectDetailPage() {
   const [failedLines, setFailedLines] = useState<LineItemDraft[] | null>(null)
   const [mobileTab, setMobileTab] = useState<'details' | 'kit'>('kit')
   const [showOverflow, setShowOverflow] = useState(false)
+  // Kit-list rows whose contents (package items, components) are folded away.
+  const [collapsedLines, setCollapsedLines] = useState<Set<number>>(new Set())
 
   // Local editable copy of the kit list; null means "no local edits yet".
   const [localLines, setLocalLines] = useState<LineItemDraft[] | null>(null)
@@ -592,6 +595,13 @@ export function ProjectDetailPage() {
     else grouped.set(line.category, [{ line, index, children }])
   })
 
+  const toggleCollapse = (idx: number) => setCollapsedLines(prev => {
+    const next = new Set(prev)
+    if (next.has(idx)) next.delete(idx)
+    else next.add(idx)
+    return next
+  })
+
   const qtyByItemId = new Map<string, number>()
   for (const l of lines) {
     if (l.is_component || !l.item_id) continue
@@ -787,7 +797,7 @@ export function ProjectDetailPage() {
             ) : (
               <div>
                 {/* Desktop column headers */}
-                <div className="hidden md:grid grid-cols-[1fr_60px_60px_80px_60px_70px_56px] gap-2 px-4 py-2 text-xs font-medium text-gray-400 border-b border-gray-100">
+                <div className="hidden md:grid grid-cols-[1fr_76px_76px_100px_60px_70px_56px] gap-2 px-4 py-2 text-xs font-medium text-gray-400 border-b border-gray-100">
                   <span>Description</span>
                   <span className="text-right">Qty</span>
                   <span className="text-right">Days</span>
@@ -810,13 +820,24 @@ export function ProjectDetailPage() {
                       const thisProjectQty = line.item_id ? (qtyByItemId.get(line.item_id) ?? 0) : 0
                       const effectiveAvail = avail ? avail.available + thisProjectQty : null
                       const overbooked = effectiveAvail !== null && line.quantity > effectiveAvail
+                      // Typing or stepping can't go past what's in stock; an existing overbooking still shows.
+                      const maxQty = effectiveAvail !== null ? Math.max(effectiveAvail, 1) : undefined
+                      const setQty = (v: number) => updateLine(lineIdx, 'quantity', maxQty !== undefined ? Math.min(maxQty, v) : v)
+                      const collapsed = collapsedLines.has(lineIdx)
+                      const chevron = children.length > 0 && (
+                        <button onClick={() => toggleCollapse(lineIdx)} className="text-gray-400 hover:text-gray-600 shrink-0"
+                          aria-label={collapsed ? 'Show contents' : 'Hide contents'} aria-expanded={!collapsed}>
+                          {collapsed ? <ChevronRight size={13} /> : <ChevronDown size={13} />}
+                        </button>
+                      )
 
                       return (
                         <div key={lineIdx} className={overbooked ? 'bg-red-50/60' : ''}>
                           {/* Desktop row */}
-                          <div className={`hidden md:grid grid-cols-[1fr_60px_60px_80px_60px_70px_56px] gap-2 px-4 py-2 items-center border-b border-gray-50 hover:bg-gray-50`}>
+                          <div className={`hidden md:grid grid-cols-[1fr_76px_76px_100px_60px_70px_56px] gap-2 px-4 py-2 items-center border-b border-gray-50 hover:bg-gray-50`}>
                             <div className="min-w-0">
                               <div className="flex items-center gap-1.5 min-w-0">
+                                {chevron}
                                 <span className="text-sm text-gray-900 truncate">{line.description}</span>
                                 {subhireItem?.is_subhire && <SubhireBadge />}
                                 {overbooked && <span className="text-xs text-red-600 shrink-0">⚠ Over stock</span>}
@@ -827,15 +848,9 @@ export function ProjectDetailPage() {
                                 </span>
                               )}
                             </div>
-                            <input className={`text-sm text-right border-0 bg-transparent focus:outline-none w-full ${overbooked ? 'text-red-600 font-medium' : ''}`}
-                              type="number" min="1" max={effectiveAvail ?? undefined} value={line.quantity}
-                              onChange={e => updateLine(lineIdx, 'quantity', parseInt(e.target.value) || 1)} />
-                            <input className="text-sm text-right border-0 bg-transparent focus:outline-none w-full"
-                              type="number" min="1" value={line.days}
-                              onChange={e => updateLine(lineIdx, 'days', parseInt(e.target.value) || 1)} />
-                            <input className="text-sm text-right border-0 bg-transparent focus:outline-none w-full"
-                              type="number" min="0" step="0.01" value={line.unit_price}
-                              onChange={e => updateLine(lineIdx, 'unit_price', parseFloat(e.target.value) || 0)} />
+                            <Stepper value={line.quantity} min={1} max={maxQty} onChange={setQty} warn={overbooked} label="Quantity" />
+                            <Stepper value={line.days} min={1} onChange={v => updateLine(lineIdx, 'days', v)} label="Days" />
+                            <Stepper value={line.unit_price} min={0} decimals={2} onChange={v => updateLine(lineIdx, 'unit_price', v)} label="Unit price" />
                             <input className="text-sm text-right border-0 bg-transparent focus:outline-none w-full"
                               type="number" min="0" max="100" step="0.01" value={line.discount_pct}
                               onChange={e => updateLine(lineIdx, 'discount_pct', parseFloat(e.target.value) || 0)} />
@@ -850,6 +865,7 @@ export function ProjectDetailPage() {
                           <div className="md:hidden px-4 py-3 border-b border-gray-100">
                             <div className="flex items-start justify-between gap-2 mb-2">
                               <div className="flex-1 min-w-0">
+                                {chevron && <span className="inline-flex align-middle mr-1">{chevron}</span>}
                                 <span className="text-sm font-medium text-gray-900">{line.description}</span>
                                 {subhireItem?.is_subhire && <SubhireBadge />}
                                 {overbooked && <span className="ml-1 text-xs text-red-600">⚠ Over stock</span>}
@@ -865,21 +881,15 @@ export function ProjectDetailPage() {
                             <div className="grid grid-cols-4 gap-2">
                               <div>
                                 <label className="text-xs text-gray-400 block">Qty</label>
-                                <input className="w-full text-sm border border-gray-200 rounded px-2 py-1 text-center"
-                                  type="number" min="1" value={line.quantity}
-                                  onChange={e => updateLine(lineIdx, 'quantity', parseInt(e.target.value) || 1)} />
+                                <Stepper boxed value={line.quantity} min={1} max={maxQty} onChange={setQty} warn={overbooked} label="Quantity" />
                               </div>
                               <div>
                                 <label className="text-xs text-gray-400 block">Days</label>
-                                <input className="w-full text-sm border border-gray-200 rounded px-2 py-1 text-center"
-                                  type="number" min="1" value={line.days}
-                                  onChange={e => updateLine(lineIdx, 'days', parseInt(e.target.value) || 1)} />
+                                <Stepper boxed value={line.days} min={1} onChange={v => updateLine(lineIdx, 'days', v)} label="Days" />
                               </div>
                               <div>
                                 <label className="text-xs text-gray-400 block">Price £</label>
-                                <input className="w-full text-sm border border-gray-200 rounded px-2 py-1 text-center"
-                                  type="number" min="0" step="0.01" value={line.unit_price}
-                                  onChange={e => updateLine(lineIdx, 'unit_price', parseFloat(e.target.value) || 0)} />
+                                <Stepper boxed value={line.unit_price} min={0} decimals={2} onChange={v => updateLine(lineIdx, 'unit_price', v)} label="Unit price" />
                               </div>
                               <div>
                                 <label className="text-xs text-gray-400 block">Total</label>
@@ -888,13 +898,13 @@ export function ProjectDetailPage() {
                             </div>
                           </div>
 
-                          {/* Component sub-lines */}
-                          {children.map(({ line: child, index: ci }) => {
+                          {/* Component sub-lines, folded away with the chevron */}
+                          {!collapsed && children.map(({ line: child, index: ci }) => {
                             return (
-                              <div key={ci} className="hidden md:grid grid-cols-[1fr_60px_60px_80px_60px_70px_56px] gap-2 px-4 py-1 items-center border-b border-gray-50 bg-gray-50/50">
-                                <span className="text-xs text-gray-400 pl-4">{child.description}</span>
-                                <span className="text-xs text-gray-400 text-right">{child.quantity}</span>
-                                <span className="text-xs text-gray-400 text-right">{child.days}</span>
+                              <div key={ci} className="hidden md:grid grid-cols-[1fr_76px_76px_100px_60px_70px_56px] gap-2 px-4 py-1 items-center border-b border-gray-50 bg-gray-50/50">
+                                <span className="text-xs text-gray-400 pl-6">{child.description}</span>
+                                <span className="text-xs text-gray-400 text-center">{child.quantity}</span>
+                                <span className="text-xs text-gray-400 text-center">{child.days}</span>
                                 <span className="text-xs text-gray-400 text-right">—</span>
                                 <span className="text-xs text-gray-400 text-right">—</span>
                                 <span className="text-xs text-gray-400 text-right">£0.00</span>
@@ -1036,6 +1046,33 @@ export function ProjectDetailPage() {
   )
 }
 
+/**
+ * A number with − / + either side, for kit-list quantities, days and prices.
+ * Typing still works; the buttons step by one unit and respect min / max.
+ */
+function Stepper({ value, onChange, min, max, decimals = 0, warn, boxed, label }: {
+  value: number; onChange: (v: number) => void; min: number; max?: number
+  decimals?: number; warn?: boolean; boxed?: boolean; label: string
+}) {
+  const clamp = (v: number) => {
+    const rounded = Number(v.toFixed(decimals))
+    return Math.max(min, max !== undefined ? Math.min(max, rounded) : rounded)
+  }
+  const parse = (raw: string) => (decimals > 0 ? parseFloat(raw) : parseInt(raw))
+  const btn = boxed ? 'px-1.5 py-1 text-gray-400 hover:bg-gray-100 text-sm disabled:opacity-30' : 'text-gray-300 hover:text-gray-700 text-xs px-0.5 disabled:opacity-30'
+  return (
+    <div className={boxed ? 'flex items-center border border-gray-200 rounded overflow-hidden' : 'flex items-center justify-end gap-0.5'}>
+      <button type="button" className={btn} onClick={() => onChange(clamp(value - 1))} disabled={value <= min} aria-label={`Decrease ${label.toLowerCase()}`}>−</button>
+      <input
+        className={`text-sm text-center border-0 bg-transparent focus:outline-none ${boxed ? 'w-full py-1' : decimals > 0 ? 'w-14' : 'w-9'} ${warn ? 'text-red-600 font-medium' : ''}`}
+        type="number" min={min} max={max} step={decimals > 0 ? 0.01 : 1} value={value} aria-label={label}
+        onChange={e => { const v = parse(e.target.value); onChange(clamp(Number.isFinite(v) ? v : min)) }}
+      />
+      <button type="button" className={btn} onClick={() => onChange(clamp(value + 1))} disabled={max !== undefined && value >= max} aria-label={`Increase ${label.toLowerCase()}`}>+</button>
+    </div>
+  )
+}
+
 function AddItemModal({ open, onClose, items, packages, onAddItems, onAddPackage, projectId, eventDate, collectionDate }: {
   open: boolean; onClose: () => void
   items: Item[]; packages: Package[]
@@ -1053,6 +1090,8 @@ function AddItemModal({ open, onClose, items, packages, onAddItems, onAddPackage
   const [pkgDays, setPkgDays] = useState(1)
 
   const defaultDays = defaultHireDays(eventDate, collectionDate)
+  const hasDates = !!(eventDate || collectionDate)
+  const itemsById = useMemo(() => new Map(items.map(i => [i.id, i])), [items])
 
   const filteredItems = items.filter(i =>
     !i.out_of_service &&
@@ -1177,23 +1216,59 @@ function AddItemModal({ open, onClose, items, packages, onAddItems, onAddPackage
           </div>
         ) : (
           <div className="border border-gray-200 rounded-lg overflow-hidden max-h-72 overflow-y-auto">
-            {filteredPkgs.map(pkg => (
-              <button key={pkg.id} onClick={() => setSelectedPkg(pkg)}
-                className={`w-full flex items-center gap-3 px-3 py-2.5 text-left border-b border-gray-100 last:border-0 ${selectedPkg?.id === pkg.id ? 'bg-gray-900 text-white' : 'hover:bg-gray-50'}`}>
-                <span className={`font-mono text-xs ${selectedPkg?.id === pkg.id ? 'text-gray-300' : 'text-gray-400'}`}>{pkg.package_id}</span>
-                <span className="text-sm flex-1">{pkg.name}</span>
-                <span className={`text-sm ${selectedPkg?.id === pkg.id ? 'text-gray-200' : 'text-gray-500'}`}>{formatCurrency(pkg.day_price)}/day</span>
-              </button>
-            ))}
+            {filteredPkgs.map(pkg => {
+              const fits = hasDates ? packageAvailability(pkg, availabilityMap) : null
+              const unavailable = fits === 0
+              const isSelected = selectedPkg?.id === pkg.id
+              const count = pkg.package_items?.length ?? 0
+              return (
+                <button key={pkg.id} disabled={unavailable}
+                  onClick={() => { setSelectedPkg(pkg); setPkgQty(1); setPkgDays(defaultDays) }}
+                  className={`w-full flex items-center gap-3 px-3 py-2.5 text-left border-b border-gray-100 last:border-0 ${isSelected ? 'bg-gray-900 text-white' : unavailable ? 'opacity-50 cursor-not-allowed bg-red-50/30' : 'hover:bg-gray-50'}`}>
+                  <span className={`font-mono text-xs ${isSelected ? 'text-gray-300' : 'text-gray-400'}`}>{pkg.package_id}</span>
+                  <span className="text-sm flex-1">{pkg.name}</span>
+                  {count > 0 && <span className={`text-xs hidden sm:block ${isSelected ? 'text-gray-300' : 'text-gray-400'}`}>{count} item{count !== 1 ? 's' : ''}</span>}
+                  {fits !== null && (
+                    <span className={`text-xs font-medium px-1.5 py-0.5 rounded ${
+                      fits === 0 ? 'bg-red-100 text-red-700' : fits === 1 ? 'bg-orange-100 text-orange-700' : 'bg-green-100 text-green-700'
+                    }`}>{fits === 0 ? 'Unavailable' : `${fits} avail`}</span>
+                  )}
+                  <span className={`text-sm ${isSelected ? 'text-gray-200' : 'text-gray-500'}`}>{formatCurrency(pkg.day_price)}/day</span>
+                </button>
+              )
+            })}
+            {filteredPkgs.length === 0 && <p className="text-sm text-gray-400 text-center py-8">No packages found</p>}
           </div>
         )}
 
-        {tab === 'packages' && selectedPkg && (
-          <div className="flex gap-4">
-            <Input label="Qty" type="number" min="1" value={pkgQty} onChange={e => setPkgQty(parseInt(e.target.value) || 1)} className="w-24" />
-            <Input label="Days" type="number" min="1" value={pkgDays} onChange={e => setPkgDays(parseInt(e.target.value) || 1)} className="w-24" />
-          </div>
-        )}
+        {tab === 'packages' && selectedPkg && (() => {
+          const fits = hasDates ? packageAvailability(selectedPkg, availabilityMap) : null
+          return (
+            <div className="space-y-2">
+              <div className="flex gap-4 items-end">
+                <Input label="Qty" type="number" min="1" max={fits ?? undefined} value={pkgQty}
+                  onChange={e => setPkgQty(Math.max(1, Math.min(fits ?? Infinity, parseInt(e.target.value) || 1)))} className="w-24" />
+                <Input label="Days" type="number" min="1" value={pkgDays} onChange={e => setPkgDays(parseInt(e.target.value) || 1)} className="w-24" />
+                {fits !== null && <span className="text-xs text-gray-500 pb-2.5">{fits} can go out on these dates</span>}
+              </div>
+              {(selectedPkg.package_items?.length ?? 0) > 0 && (
+                <div className="bg-gray-50 rounded-lg px-3 py-2">
+                  <p className="text-xs font-medium text-gray-500 mb-1">Contents</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {selectedPkg.package_items!.map(pi => {
+                      const short = hasDates && (availabilityMap.get(pi.item_id)?.available ?? Infinity) < pi.quantity * pkgQty
+                      return (
+                        <span key={pi.id} className={`text-xs bg-white border rounded px-2 py-0.5 ${short ? 'border-red-300 text-red-700' : 'border-gray-200 text-gray-700'}`}>
+                          {pi.quantity > 1 ? `${pi.quantity}× ` : ''}{pi.item?.name ?? itemsById.get(pi.item_id)?.name ?? '—'}
+                        </span>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+          )
+        })()}
 
         {conflicts.length > 0 && (
           <div className="bg-red-50 border border-red-200 rounded-lg px-3 py-2 space-y-0.5">
